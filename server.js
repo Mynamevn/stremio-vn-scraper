@@ -2,8 +2,8 @@ const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const axios = require("axios");
 
 const manifest = {
-    "id": "community.bcpprofortv", // Thay đổi ID để ép Stremio xóa hoàn toàn cache cũ trên TV LG
-    "version": "1.4.5",
+    "id": "community.bcpprofortv",
+    "version": "1.5.0",
     "name": "BCP",
     "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
@@ -13,19 +13,19 @@ const manifest = {
         {
             "type": "movie",
             "id": "bcp_fixed",
-            "name": "Mục Tổng Hợp"
+            "name": "Mục Tổng Hợp",
+            "extra": [{ "name": "search", "isRequired": false }] // Kích hoạt tính năng đồng bộ sang mục Discover
         }
     ]
 };
 
 const builder = new addonBuilder(manifest);
 
+// Hệ thống danh sách phim kèm poster độ phân giải tối ưu cho TV LG
 const fixedMovies = [
-    { id: "tt1630029", name: "Avatar: The Way of Water", poster: "https://tmdb.org" },
-    { id: "tt6718170", name: "Spider-Man: Into the Spider-Verse", poster: "https://tmdb.org" },
-    { id: "tt10872600", name: "Spider-Man: No Way Home", poster: "https://tmdb.org" },
-    { id: "tt2263560", name: "Deadpool & Wolverine", poster: "https://tmdb.org" },
-    { id: "tt5433138", name: "Fast & Furious Crossroads", poster: "https://tmdb.org" }
+    { id: "tt1630029", name: "Avatar", searchName: "avatar", poster: "https://phimimg.com" },
+    { id: "tt10872600", name: "Spider-Man: No Way Home", searchName: "spider-man-no-way-home", poster: "https://phimimg.com" },
+    { id: "tt2263560", name: "Deadpool & Wolverine", searchName: "deadpool-wolverine", poster: "https://phimimg.com" }
 ];
 
 async function getMovieMetadata(imdbId) {
@@ -40,30 +40,46 @@ async function getMovieMetadata(imdbId) {
     }
 }
 
+// Handler đồng bộ hiển thị Catalog lên cả Board lẫn Discover
 builder.defineCatalogHandler(async function(args) {
     if (args.id === "bcp_fixed") {
         const metas = fixedMovies.map(movie => ({
             id: movie.id,
             type: "movie",
             name: movie.name,
-            poster: movie.poster
+            poster: movie.poster,
+            description: "Xem trực tiếp qua hệ thống luồng phát BCP."
         }));
         return { metas: metas };
     }
     return { metas: [] };
 });
 
+// Handler xử lý tìm và bóc tách luồng phát trực tiếp
 builder.defineStreamHandler(async function(args) {
     const streams = [];
-    const meta = await getMovieMetadata(args.id);
-    if (!meta || !meta.name) return { streams: [] };
-    
-    const movieName = meta.name;
+    let movieName = "";
+    let lookupName = "";
+
+    // Tìm kiếm xem phim có nằm trong danh sách ghim cố định hay không để lấy tên tìm kiếm chuẩn
+    const matchedMovie = fixedMovies.find(m => m.id === args.id);
+    if (matchedMovie) {
+        movieName = matchedMovie.name;
+        lookupName = matchedMovie.searchName;
+    } else {
+        const meta = await getMovieMetadata(args.id);
+        if (meta) {
+            movieName = meta.name;
+            lookupName = meta.name.toLowerCase().replace(/ /g, '-');
+        }
+    }
+
+    if (!movieName) return { streams: [] };
     const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
 
-    // Gửi thẳng luồng m3u8 động qua API
+    // GỌI KÊNH VIP: Kết nối API mở lấy luồng m3u8 phát trực tiếp cho TV LG
     try {
-        const res = await axios.get("https://ophim1.com" + movieName.toLowerCase().replace(/ /g, '-'), { timeout: 4000 });
+        const res = await axios.get("https://ophim1.com" + lookupName, { timeout: 4000 });
         if (res.data && res.data.episodes) {
             res.data.episodes.forEach(ep => {
                 if (ep.server_data) {
@@ -71,7 +87,7 @@ builder.defineStreamHandler(async function(args) {
                         if (server.link_m3u8) {
                             streams.push({
                                 name: "🔹 Source VIP 1",
-                                title: "Phát trực tiếp: " + server.name + "\nLuồng video HLS chuẩn TV",
+                                title: "Phát trực tiếp: " + movieName + "\nNguồn: " + server.name + " (Tải nhanh)",
                                 url: server.link_m3u8
                             });
                         }
@@ -80,10 +96,10 @@ builder.defineStreamHandler(async function(args) {
             });
         }
     } catch (e) { 
-        console.log("Nghẽn API tìm kiếm"); 
+        console.log("Nghẽn cổng kết nối API VIP"); 
     }
 
-    // Luồng dự phòng liên kết
+    // KÊNH DỰ PHÒNG: Link tìm kiếm nhanh
     streams.push({
         name: "🔹 Source Web 2",
         title: "Tìm kiếm '" + movieName + "' trên MọtPhimTV",
