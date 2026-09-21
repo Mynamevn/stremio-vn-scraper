@@ -4,7 +4,7 @@ const cheerio = require("cheerio");
 
 const manifest = {
     "id": "community.myvietnamesescraper",
-    "version": "1.2.0",
+    "version": "1.2.5",
     "name": "BCP",
     "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
@@ -59,7 +59,7 @@ builder.defineCatalogHandler(async function(args) {
     
     if (args.id === "1phim32_new") {
         try {
-            const res = await axios.get("https://1phim32.com", { headers: requestHeaders, timeout: 5000 });
+            const res = await axios.get("https://1phim32.com/", { headers: requestHeaders, timeout: 5000 });
             const $ = cheerio.load(res.data);
             $('.list-films .item').each((i, el) => {
                 const title = $(el).find('a').attr('title') || $(el).find('.title').text().trim();
@@ -139,7 +139,7 @@ builder.defineStreamHandler(async function(args) {
 
     // SOURCE 1: 1PHIM32
     try {
-        const url1 = "https://1phim32.com" + searchSlug + "/";
+        const url1 = "https://1phim32.com/" + searchSlug + "/";
         const res1 = await axios.get(url1, { headers: requestHeaders, timeout: 5000 });
         const $ = cheerio.load(res1.data);
         let videoSrc = $("iframe").attr("src") || $("video").attr("src");
