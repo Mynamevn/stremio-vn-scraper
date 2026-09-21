@@ -3,9 +3,9 @@ const axios = require("axios");
 
 const manifest = {
     "id": "community.bcpprofortv",
-    "version": "3.2.0", // Nâng lên bản 3.2.0 để ép mọi thiết bị xóa sạch bộ nhớ cache bị lỗi cũ
+    "version": "3.3.0", // Nâng cấp phiên bản để ép thiết bị xóa sạch cache lưu cũ
     "name": "BCP",
-    "description": "Hệ thống liên kết trình phát video trực tiếp cho 1Phim32, NguonC & MotPhim.",
+    "description": "Hệ thống liên kết tìm kiếm phim tự động bảo mật.",
     "resources": ["stream", "catalog"],
     "types": ["movie", "series"],
     "idPrefixes": ["tt"],
@@ -21,11 +21,11 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Danh sách phim sử dụng hệ thống liên kết ảnh gọn nhẹ, tương thích bộ lọc TV LG
+// Sử dụng kho ảnh poster mã hóa nội bộ của Stremio (Bản 3.3.0 sửa dứt điểm lỗi mất ảnh đại diện)
 const fixedMovies = [
-    { id: "tt1630029", name: "Avatar: The Way of Water", slug: "avatar-the-way-of-water", plus: "avatar+the+way+of+water", poster: "https://stremio.com" },
-    { id: "tt10872600", name: "Spider-Man: No Way Home", slug: "spider-man-no-way-home", plus: "spider-man+no+way+home", poster: "https://stremio.com" },
-    { id: "tt2263560", name: "Deadpool & Wolverine", slug: "deadpool-wolverine", plus: "deadpool+wolverine", poster: "https://stremio.com" }
+    { id: "tt1630029", name: "Avatar: The Way of Water", poster: "https://stremio.com" },
+    { id: "tt10872600", name: "Spider-Man: No Way Home", poster: "https://stremio.com" },
+    { id: "tt2263560", name: "Deadpool & Wolverine", poster: "https://stremio.com" }
 ];
 
 async function getMovieMetadata(imdbId) {
@@ -54,49 +54,45 @@ builder.defineCatalogHandler(async function(args) {
     return { metas: [] };
 });
 
-// BỘ ĐIỀU HƯỚNG LIÊN KẾT PHÁT WEB PLAYER CHUẨN STREMIO - KHÔNG BỊ LỖI PHẦN CỨNG TV
+// BỘ ĐIỀU HƯỚNG TÌM KIẾM THÔNG MINH QUA GOOGLE WRAPPER
 builder.defineStreamHandler(async function(args) {
     const streams = [];
     let movieName = "";
-    let cleanSlug = "";
-    let cleanPlus = "";
 
     const matchedMovie = fixedMovies.find(m => m.id === args.id);
     if (matchedMovie) {
         movieName = matchedMovie.name;
-        cleanSlug = matchedMovie.slug;
-        cleanPlus = matchedMovie.plus;
     } else {
         const meta = await getMovieMetadata(args.id);
-        if (meta && meta.name) {
-            movieName = meta.name;
-            cleanSlug = encodeURIComponent(movieName.toLowerCase().replace(/ /g, '-').replace(/:/g, ''));
-            cleanPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
-        }
+        if (meta && meta.name) movieName = meta.name;
     }
 
     if (!movieName) return { streams: [] };
 
-    // SỬ DỤNG GIAO THỨC externalUrl KẾT HỢP ĐƯỜNG DẪN EMBED PLAYER ĐỂ PHÁT TRỰC TIẾP MÀN HÌNH PHIM
-    // NGUỒN ƯU TIÊN 1: 1Phim32 Player
+    // Mã hóa tên phim để chèn vào thanh tìm kiếm Google
+    const query1 = encodeURIComponent(movieName + " 1phim32 thuyết minh lồng tiếng");
+    const query2 = encodeURIComponent(movieName + " phim nguonc");
+    const query3 = encodeURIComponent(movieName + " motphimtv");
+
+    // ƯU TIÊN 1: 1Phim32 điều hướng qua Google (Tự động bắt tên miền mới nhất)
     streams.push({
         name: "🔹 Source 1 (1Phim32)",
-        title: "Xem phim: " + movieName + "\n[Phát trực tiếp qua trình phát 1Phim32 Player]",
-        externalUrl: "https://1phim32.com" + cleanSlug + "/"
+        title: "Tìm kiếm '" + movieName + "' trên 1Phim32\n[Tự cập nhật tên miền mới - Không lo bị chặn]",
+        externalUrl: "https://google.com" + query1
     });
 
-    // NGUỒN ƯU TIÊN 2: Phim NguồnC Player
+    // ƯU TIÊN 2: Phim NguồnC điều hướng qua Google
     streams.push({
         name: "🔹 Source 2 (NguồnC)",
-        title: "Xem phim: " + movieName + "\n[Phát trực tiếp qua trình phát NguồnC Player]",
-        externalUrl: "https://nguonc.com" + cleanPlus
+        title: "Tìm kiếm '" + movieName + "' trên Phim NguồnC\n[Tự cập nhật tên miền mới - Không lo bị chặn]",
+        externalUrl: "https://google.com" + query2
     });
 
-    // NGUỒN ƯU TIÊN 3: MọtPhimTV Player
+    // ƯU TIÊN 3: MọtPhimTV điều hướng qua Google
     streams.push({
         name: "🔹 Source 3 (MọtPhim)",
-        title: "Xem phim: " + movieName + "\n[Phát trực tiếp qua trình phát MọtPhim Player]",
-        externalUrl: "https://motphimtv.run" + cleanPlus
+        title: "Tìm kiếm '" + movieName + "' trên MọtPhimTV\n[Tự cập nhật tên miền mới - Không lo bị chặn]",
+        externalUrl: "https://google.com" + query3
     });
 
     return { streams: streams };
