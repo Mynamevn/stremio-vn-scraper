@@ -9,7 +9,8 @@ const manifest = {
     "description": "Tự động tìm kiếm và lấy nguồn trực tiếp từ 1phim32 và phim.nguonc.",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt"]
+    "idPrefixes": ["tt"],
+    "catalogs": [] // Thêm dòng này để sửa triệt để lỗi "manifest.catalogs must be an array"
 };
 
 const builder = new addonBuilder(manifest);
