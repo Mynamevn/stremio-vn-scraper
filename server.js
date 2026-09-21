@@ -1,10 +1,9 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const axios = require("axios");
-const cheerio = require("cheerio");
 
 const manifest = {
     "id": "community.myvietnamesescraper",
-    "version": "1.2.5",
+    "version": "1.3.0",
     "name": "BCP",
     "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
@@ -13,39 +12,20 @@ const manifest = {
     "catalogs": [
         {
             "type": "movie",
-            "id": "1phim32_new",
-            "name": "Mục 1"
-        },
-        {
-            "type": "movie",
-            "id": "nguonc_new",
-            "name": "Mục 2"
-        },
-        {
-            "type": "movie",
-            "id": "motphim_new",
-            "name": "Mục 3"
+            "id": "bcp_trending",
+            "name": "Mục Tổng Hợp"
         }
     ]
 };
 
 const builder = new addonBuilder(manifest);
 
-const requestHeaders = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Cache-Control": "max-age=0"
-};
-
+// Sử dụng API cổng chung cấu trúc mở để hạn chế tối đa việc bị Cloudflare chặn IP Render
 async function getMovieMetadata(imdbId) {
     try {
         const res = await axios.get("https://stremio.com" + imdbId + ".json", { timeout: 4000 });
         if (res.data && res.data.meta) {
-            return {
-                name: res.data.meta.name,
-                year: res.data.meta.year || ""
-            };
+            return { name: res.data.meta.name };
         }
         return null;
     } catch (e) {
@@ -53,144 +33,73 @@ async function getMovieMetadata(imdbId) {
     }
 }
 
-// 1. XỬ LÝ GIAO DIỆN MỤC PHIM (CATALOG HANDLER)
+// Bẫy lỗi Catalog: Trả về danh mục trống thay vì sập hệ thống nếu bị chặn IP
 builder.defineCatalogHandler(async function(args) {
     const catalogItems = [];
-    
-    if (args.id === "1phim32_new") {
+    if (args.id === "bcp_trending") {
         try {
-            const res = await axios.get("https://1phim32.com/", { headers: requestHeaders, timeout: 5000 });
-            const $ = cheerio.load(res.data);
-            $('.list-films .item').each((i, el) => {
-                const title = $(el).find('a').attr('title') || $(el).find('.title').text().trim();
-                const href = $(el).find('a').attr('href');
-                const img = $(el).find('img').attr('src');
-                if (title && href) {
+            // Thử nghiệm lấy danh sách phim qua một endpoint API mở trung gian ổn định hơn
+            const res = await axios.get("https://ophim1.com", { timeout: 4000 });
+            if (res.data && res.data.items) {
+                res.data.items.forEach(item => {
                     catalogItems.push({
-                        id: "1phim32_" + encodeURIComponent(title),
+                        id: "bcp_" + encodeURIComponent(item.name),
                         type: "movie",
-                        name: title,
-                        poster: img || ""
+                        name: item.name,
+                        poster: "https://ophim.cc" + item.thumb_url + "&w=1920&q=75"
                     });
-                }
-            });
-        } catch (err) { console.log("Lỗi tải mục phim 1"); }
+                });
+            }
+        } catch (err) { 
+            console.log("Tường lửa chặn mục phim, chuyển sang chế độ chờ..."); 
+        }
     }
-
-    if (args.id === "nguonc_new") {
-        try {
-            const res = await axios.get("https://nguonc.com", { headers: requestHeaders, timeout: 5000 });
-            const $ = cheerio.load(res.data);
-            $('.list-films .item').each((i, el) => {
-                const title = $(el).find('a').text().trim();
-                const href = $(el).find('a').attr('href');
-                if (title && href) {
-                    catalogItems.push({
-                        id: "nguonc_" + encodeURIComponent(title),
-                        type: "movie",
-                        name: title,
-                        poster: ""
-                    });
-                }
-            });
-        } catch (err) { console.log("Lỗi tải mục phim 2"); }
-    }
-
-    if (args.id === "motphim_new") {
-        try {
-            const res = await axios.get("https://motphimtv.run", { headers: requestHeaders, timeout: 5000 });
-            const $ = cheerio.load(res.data);
-            $('.list-films .item, .list-film .item, .post-item').each((i, el) => {
-                const title = $(el).find('a').attr('title') || $(el).find('h3').text().trim() || $(el).find('.title').text().trim();
-                const href = $(el).find('a').attr('href');
-                const img = $(el).find('img').attr('src') || $(el).find('img').attr('data-src');
-                if (title && href) {
-                    catalogItems.push({
-                        id: "motphim_" + encodeURIComponent(title),
-                        type: "movie",
-                        name: title,
-                        poster: img || ""
-                    });
-                }
-            });
-        } catch (err) { console.log("Lỗi tải mục phim 3"); }
-    }
-
     return { metas: catalogItems };
 });
 
-// 2. XỬ LÝ LẤY LUỒNG PHÁT VIDEO (STREAM HANDLER)
 builder.defineStreamHandler(async function(args) {
     const streams = [];
     let movieName = "";
 
-    if (args.id.startsWith("1phim32_") || args.id.startsWith("nguonc_") || args.id.startsWith("motphim_")) {
-        movieName = decodeURIComponent(args.id.replace("1phim32_", "").replace("nguonc_", "").replace("motphim_", ""));
+    if (args.id.startsWith("bcp_")) {
+        movieName = decodeURIComponent(args.id.replace("bcp_", ""));
     } else {
         const meta = await getMovieMetadata(args.id);
         if (meta) movieName = meta.name;
     }
 
     if (!movieName) return { streams: [] };
-
-    const searchSlug = encodeURIComponent(movieName.toLowerCase().replace(/ /g, '-'));
     const searchQuery = encodeURIComponent(movieName);
-    const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
 
-    // SOURCE 1: 1PHIM32
+    // Kênh 1: Giải pháp API mở (Tỉ lệ Live cao trên Render)
     try {
-        const url1 = "https://1phim32.com/" + searchSlug + "/";
-        const res1 = await axios.get(url1, { headers: requestHeaders, timeout: 5000 });
-        const $ = cheerio.load(res1.data);
-        let videoSrc = $("iframe").attr("src") || $("video").attr("src");
-        if (videoSrc) {
-            streams.push({ name: "🔹 Source 1-A", title: "Stream: " + movieName, url: videoSrc });
-        } else {
-            $('.list-films .item a').each((i, el) => {
-                const href = $(el).attr('href');
-                if (href) streams.push({ name: "🔹 Source 1-B", title: "Link: " + movieName, url: href });
-            });
-        }
-    } catch (err) { console.log("Lỗi Source 1"); }
-
-    // SOURCE 2: PHIM NGUỒNC
-    try {
-        const url2 = "https://nguonc.com?s=" + searchQuery;
-        const res2 = await axios.get(url2, { headers: requestHeaders, timeout: 5000 });
-        const $ = cheerio.load(res2.data);
-        let videoSrc2 = $("iframe").attr("src") || $("video").attr("src");
-        if (videoSrc2) {
-            streams.push({ name: "🔹 Source 2-A", title: "Stream: " + movieName, url: videoSrc2 });
-        } else {
-            $('.list-films .item a').each((i, el) => {
-                const href = $(el).attr('href');
-                if (href) {
-                    const fullHref = href.indexOf('http') === 0 ? href : "https://nguonc.com" + href;
-                    streams.push({ name: "🔹 Source 2-B", title: "Link: " + movieName, url: fullHref });
+        const res = await axios.get("https://ophim1.com" + searchQuery.toLowerCase().replace(/%20/g, '-'), { timeout: 4000 });
+        if (res.data && res.data.episodes) {
+            res.data.episodes.forEach(ep => {
+                if (ep.server_data) {
+                    ep.server_data.forEach(server => {
+                        if (server.link_m3u8) {
+                            streams.push({
+                                name: "🔹 Source VIP 1",
+                                title: "Luồng trực tiếp: " + server.name + "\nBấm để xem ngay trên TV",
+                                url: server.link_m3u8
+                            });
+                        }
+                    });
                 }
             });
         }
-    } catch (err) { console.log("Lỗi Source 2"); }
+    } catch (e) { console.log("Kênh 1 tạm thời nghẽn IP"); }
 
-    // SOURCE 3: MỌTPHIMTV
+    // Kênh 2: Dự phòng cào link web nhúng
     try {
-        const url3 = "https://motphimtv.run?search=" + searchPlus;
-        const res3 = await axios.get(url3, { headers: requestHeaders, timeout: 5000 });
-        const $ = cheerio.load(res3.data);
-        
-        $('.list-films .item a, .list-film .item a, a.movie-item').each((i, el) => {
-            const href = $(el).attr('href');
-            const title = $(el).attr('title') || $(el).find('.title').text().trim() || "MọtPhim Link";
-            if (href) {
-                const fullHref = href.indexOf('http') === 0 ? href : "https://motphimtv.run" + href;
-                streams.push({
-                    name: "🔹 Source 3",
-                    title: "MọtPhimTV: " + title,
-                    url: fullHref
-                });
-            }
+        const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
+        streams.push({
+            name: "🔹 Source Web 2",
+            title: "Mở liên kết trình phát MọtPhimTV",
+            url: "https://motphimtv.run" + searchPlus
         });
-    } catch (err) { console.log("Lỗi Source 3"); }
+    } catch (e) { console.log("Kênh 2 lỗi"); }
 
     return { streams: streams };
 });
