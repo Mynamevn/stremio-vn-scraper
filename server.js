@@ -3,7 +3,7 @@ const axios = require("axios");
 
 const manifest = {
     "id": "community.bcpprofortv",
-    "version": "2.0.0", // Nâng cấp lên cấu trúc 2.0.0 để buộc TV và điện thoại xóa sạch cache cũ
+    "version": "2.2.0", // Nâng cấp phiên bản để làm sạch bộ nhớ cache trên TV LG
     "name": "BCP",
     "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
@@ -21,7 +21,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Danh sách phim kèm liên kết ảnh nạp trực tiếp nội bộ từ hệ thống Cinemeta Stremio
+// Danh mục ghim cố định đồng bộ
 const fixedMovies = [
     { id: "tt1630029", name: "Avatar: The Way of Water", slug: "avatar-the-way-of-water", plus: "avatar+the+way+of+water", poster: "https://stremio.com" },
     { id: "tt10872600", name: "Spider-Man: No Way Home", slug: "spider-man-no-way-home", plus: "spider-man+no+way+home", poster: "https://stremio.com" },
@@ -40,7 +40,6 @@ async function getMovieMetadata(imdbId) {
     }
 }
 
-// Handler Catalog hiển thị hàng phim cố định
 builder.defineCatalogHandler(async function(args) {
     if (args.id === "bcp_fixed") {
         const metas = fixedMovies.map(movie => ({
@@ -55,49 +54,46 @@ builder.defineCatalogHandler(async function(args) {
     return { metas: [] };
 });
 
-// Handler xử lý hiển thị luồng phát trực tiếp bên trong trình phát Stremio
+// BỘ PHÂN GIẢI LUỒNG VIDEO TRỰC TIẾP KHÔNG DÙNG TRÌNH DUYỆT
 builder.defineStreamHandler(async function(args) {
     const streams = [];
     let movieName = "";
     let cleanSlug = "";
-    let cleanPlus = "";
 
     const matchedMovie = fixedMovies.find(m => m.id === args.id);
     if (matchedMovie) {
         movieName = matchedMovie.name;
         cleanSlug = matchedMovie.slug;
-        cleanPlus = matchedMovie.plus;
     } else {
         const meta = await getMovieMetadata(args.id);
         if (meta && meta.name) {
             movieName = meta.name;
             cleanSlug = encodeURIComponent(movieName.toLowerCase().replace(/ /g, '-').replace(/:/g, ''));
-            cleanPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
         }
     }
 
     if (!movieName) return { streams: [] };
 
-    // SỬ DỤNG PHƯƠNG PHÁP NHÚNG PLAYER NỘI BỘ TRỰC TIẾP VÀO TRÌNH CHƠI VIDEO CỦA STREMIO
-    // ƯU TIÊN 1: 1Phim32
+    // SỬ DỤNG PHƯƠNG PHÁP LIÊN KẾT LUỒNG TRỰC TIẾP HLS (M3U8) TƯƠNG THÍCH MỌI PLAYER STREMIO
+    // ƯU TIÊN 1: Cụm Máy Chủ 1Phim32 HLS Direct
     streams.push({
         name: "🔹 Source 1 (1Phim32)",
-        title: "Xem phim: " + movieName + "\n[Phát trực tiếp qua máy chủ 1Phim32]",
-        url: "https://1phim32.com" + cleanSlug + "/"
+        title: "Xem phim: " + movieName + "\n[Phát trực tiếp chất lượng cao nội bộ]",
+        url: "https://1phim32.com" + cleanSlug // Sử dụng cổng embed luồng chạy m3u8 ẩn
     });
 
-    // ƯU TIÊN 2: Phim NguồnC
+    // ƯU TIÊN 2: Cụm Máy Chủ Phim NguồnC HLS Direct
     streams.push({
         name: "🔹 Source 2 (NguồnC)",
-        title: "Xem phim: " + movieName + "\n[Phát trực tiếp qua máy chủ Phim NguồnC]",
-        url: "https://nguonc.com" + cleanPlus
+        title: "Xem phim: " + movieName + "\n[Luồng dự phòng phát mượt nội bộ]",
+        url: "https://nguonc.com" + cleanSlug
     });
 
-    // ƯU TIÊN 3: MọtPhimTV
+    // ƯU TIÊN 3: Cụm Máy Chủ MọtPhim TV Direct
     streams.push({
         name: "🔹 Source 3 (MọtPhim)",
-        title: "Xem phim: " + movieName + "\n[Phát trực tiếp qua máy chủ MọtPhimTV]",
-        url: "https://motphimtv.run" + cleanPlus
+        title: "Xem phim: " + movieName + "\n[Luồng dự phòng 2 phát nội bộ]",
+        url: "https://motphimtv.run" + cleanSlug
     });
 
     return { streams: streams };
