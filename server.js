@@ -2,8 +2,8 @@ const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 const axios = require("axios");
 
 const manifest = {
-    "id": "community.myvietnamesescraper",
-    "version": "1.4.0",
+    "id": "community.bcpprofortv", // Thay đổi ID để ép Stremio xóa hoàn toàn cache cũ trên TV LG
+    "version": "1.4.5",
     "name": "BCP",
     "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
@@ -20,7 +20,6 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Giải pháp Ghim cố định Phim Phổ Biến để Catalog không bao giờ bị biến mất trên TV LG
 const fixedMovies = [
     { id: "tt1630029", name: "Avatar: The Way of Water", poster: "https://tmdb.org" },
     { id: "tt6718170", name: "Spider-Man: Into the Spider-Verse", poster: "https://tmdb.org" },
@@ -41,11 +40,10 @@ async function getMovieMetadata(imdbId) {
     }
 }
 
-// Handler danh mục cố định, đảm bảo luôn hiển thị rực rỡ
 builder.defineCatalogHandler(async function(args) {
     if (args.id === "bcp_fixed") {
         const metas = fixedMovies.map(movie => ({
-            id: movie.id, // Sử dụng thẳng mã IMDb quốc tế
+            id: movie.id,
             type: "movie",
             name: movie.name,
             poster: movie.poster
@@ -61,10 +59,9 @@ builder.defineStreamHandler(async function(args) {
     if (!meta || !meta.name) return { streams: [] };
     
     const movieName = meta.name;
-    const searchQuery = encodeURIComponent(movieName);
     const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
 
-    // LUỒNG PHÁT VƯỢT RÀO: Gửi lệnh tìm kiếm tới API mở
+    // Gửi thẳng luồng m3u8 động qua API
     try {
         const res = await axios.get("https://ophim1.com" + movieName.toLowerCase().replace(/ /g, '-'), { timeout: 4000 });
         if (res.data && res.data.episodes) {
@@ -74,8 +71,8 @@ builder.defineStreamHandler(async function(args) {
                         if (server.link_m3u8) {
                             streams.push({
                                 name: "🔹 Source VIP 1",
-                                title: "Phát trực tiếp chất lượng cao\nNguồn: " + server.name,
-                                url: server.link_m3u8 // TV LG sẽ tự mở bằng trình chơi video nội bộ
+                                title: "Phát trực tiếp: " + server.name + "\nLuồng video HLS chuẩn TV",
+                                url: server.link_m3u8
                             });
                         }
                     });
@@ -83,13 +80,13 @@ builder.defineStreamHandler(async function(args) {
             });
         }
     } catch (e) { 
-        console.log("Nghẽn API tìm kiếm trực tiếp"); 
+        console.log("Nghẽn API tìm kiếm"); 
     }
 
-    // LUỒNG DỰ PHÒNG CHUYỂN TRANG: Hỗ trợ tìm kiếm nhanh
+    // Luồng dự phòng liên kết
     streams.push({
         name: "🔹 Source Web 2",
-        title: "Tìm kiếm phim '" + movieName + "' trên MọtPhimTV",
+        title: "Tìm kiếm '" + movieName + "' trên MọtPhimTV",
         url: "https://motphimtv.run" + searchPlus
     });
 
