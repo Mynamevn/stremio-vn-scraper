@@ -3,7 +3,7 @@ const axios = require("axios");
 
 const manifest = {
     "id": "community.bcpprofortv",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "name": "BCP",
     "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
@@ -14,18 +14,18 @@ const manifest = {
             "type": "movie",
             "id": "bcp_fixed",
             "name": "Mục Tổng Hợp",
-            "extra": [{ "name": "search", "isRequired": false }] // Kích hoạt tính năng đồng bộ sang mục Discover
+            "extra": [{ "name": "search", "isRequired": false }] // Kích hoạt đồng bộ sang tab Discover
         }
     ]
 };
 
 const builder = new addonBuilder(manifest);
 
-// Hệ thống danh sách phim kèm poster độ phân giải tối ưu cho TV LG
+// Thay đổi toàn bộ ảnh đại diện sang địa chỉ ảnh tĩnh phổ biến để TV LG không bị lỗi chặn SSL hoặc Cache
 const fixedMovies = [
-    { id: "tt1630029", name: "Avatar", searchName: "avatar", poster: "https://phimimg.com" },
-    { id: "tt10872600", name: "Spider-Man: No Way Home", searchName: "spider-man-no-way-home", poster: "https://phimimg.com" },
-    { id: "tt2263560", name: "Deadpool & Wolverine", searchName: "deadpool-wolverine", poster: "https://phimimg.com" }
+    { id: "tt1630029", name: "Avatar: The Way of Water", poster: "https://metacritic.com" },
+    { id: "tt10872600", name: "Spider-Man: No Way Home", poster: "https://metacritic.com" },
+    { id: "tt2263560", name: "Deadpool & Wolverine", poster: "https://metacritic.com" }
 ];
 
 async function getMovieMetadata(imdbId) {
@@ -40,7 +40,7 @@ async function getMovieMetadata(imdbId) {
     }
 }
 
-// Handler đồng bộ hiển thị Catalog lên cả Board lẫn Discover
+// Handler Catalog hiển thị đồng thời lên cả Board và Discover
 builder.defineCatalogHandler(async function(args) {
     if (args.id === "bcp_fixed") {
         const metas = fixedMovies.map(movie => ({
@@ -48,62 +48,51 @@ builder.defineCatalogHandler(async function(args) {
             type: "movie",
             name: movie.name,
             poster: movie.poster,
-            description: "Xem trực tiếp qua hệ thống luồng phát BCP."
+            description: "Hệ thống liên kết nguồn phát ẩn danh BCP."
         }));
         return { metas: metas };
     }
     return { metas: [] };
 });
 
-// Handler xử lý tìm và bóc tách luồng phát trực tiếp
+// Handler bóc tách luồng phát theo đúng 3 nguồn ưu tiên của bạn
 builder.defineStreamHandler(async function(args) {
     const streams = [];
     let movieName = "";
-    let lookupName = "";
 
-    // Tìm kiếm xem phim có nằm trong danh sách ghim cố định hay không để lấy tên tìm kiếm chuẩn
     const matchedMovie = fixedMovies.find(m => m.id === args.id);
     if (matchedMovie) {
         movieName = matchedMovie.name;
-        lookupName = matchedMovie.searchName;
     } else {
         const meta = await getMovieMetadata(args.id);
-        if (meta) {
-            movieName = meta.name;
-            lookupName = meta.name.toLowerCase().replace(/ /g, '-');
-        }
+        if (meta) movieName = meta.name;
     }
 
     if (!movieName) return { streams: [] };
+
+    // Chuẩn hóa các kiểu định dạng tìm kiếm cho từng trang web
+    const searchSlug = encodeURIComponent(movieName.toLowerCase().replace(/ /g, '-').replace(/:/g, ''));
     const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
 
-    // GỌI KÊNH VIP: Kết nối API mở lấy luồng m3u8 phát trực tiếp cho TV LG
-    try {
-        const res = await axios.get("https://ophim1.com" + lookupName, { timeout: 4000 });
-        if (res.data && res.data.episodes) {
-            res.data.episodes.forEach(ep => {
-                if (ep.server_data) {
-                    ep.server_data.forEach(server => {
-                        if (server.link_m3u8) {
-                            streams.push({
-                                name: "🔹 Source VIP 1",
-                                title: "Phát trực tiếp: " + movieName + "\nNguồn: " + server.name + " (Tải nhanh)",
-                                url: server.link_m3u8
-                            });
-                        }
-                    });
-                }
-            });
-        }
-    } catch (e) { 
-        console.log("Nghẽn cổng kết nối API VIP"); 
-    }
-
-    // KÊNH DỰ PHÒNG: Link tìm kiếm nhanh
+    // ƯU TIÊN 1: 1Phim32 (Cấu trúc: /search/ten-phim/)
     streams.push({
-        name: "🔹 Source Web 2",
-        title: "Tìm kiếm '" + movieName + "' trên MọtPhimTV",
-        url: "https://motphimtv.run" + searchPlus
+        name: "🔹 Source 1 (1Phim32)",
+        title: "Tìm phim '" + movieName + "' trên 1Phim32\n(Nguồn phim thuyết minh/lồng tiếng ưu tiên)",
+        url: "https://1phim32.com" + searchSlug + "/"
+    });
+
+    // ƯU TIÊN 2: Phim NguồnC (Cấu trúc: /tim-kiem?keyword=ten+phim)
+    streams.push({
+        name: "🔹 Source 2 (NguồnC)",
+        title: "Tìm phim '" + movieName + "' trên Phim NguồnC\n(Nguồn phát dự phòng số 1)",
+        url: "https://nguonc.com" + searchPlus
+    });
+
+    // ƯU TIÊN 3: MọtPhimTV (Cấu trúc: /?search=ten+phim)
+    streams.push({
+        name: "🔹 Source 3 (MọtPhim)",
+        title: "Tìm phim '" + movieName + "' trên MọtPhimTV\n(Nguồn phát dự phòng số 2)",
+        url: "https://motphimtv.run/?search=" + searchPlus
     });
 
     return { streams: streams };
