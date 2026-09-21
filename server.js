@@ -5,8 +5,8 @@ const cheerio = require("cheerio");
 const manifest = {
     "id": "community.myvietnamesescraper",
     "version": "1.2.0",
-    "name": "BCP", // Đã đổi tên theo yêu cầu của bạn để bảo mật
-    "description": "Private media stream utility dashboard.", // Mô tả ẩn danh, tránh gây chú ý
+    "name": "BCP",
+    "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
     "types": ["movie", "series"],
     "idPrefixes": ["tt"],
@@ -24,7 +24,7 @@ const manifest = {
         {
             "type": "movie",
             "id": "motphim_new",
-            "name": "Mục 3" // Mục phim mới của MọtPhimTV
+            "name": "Mục 3"
         }
     ]
 };
@@ -40,7 +40,7 @@ const requestHeaders = {
 
 async function getMovieMetadata(imdbId) {
     try {
-        const res = await axios.get(`https://stremio.com{imdbId}.json`, { timeout: 4000 });
+        const res = await axios.get("https://stremio.com" + imdbId + ".json", { timeout: 4000 });
         if (res.data && res.data.meta) {
             return {
                 name: res.data.meta.name,
@@ -60,10 +60,11 @@ builder.defineCatalogHandler(async function(args) {
     if (args.id === "1phim32_new") {
         try {
             const res = await axios.get("https://1phim32.com", { headers: requestHeaders, timeout: 5000 });
-            const \(= cheerio.load(res.data);\)('.list-films .item').each((i, el) => {
-                const title = (el).find('a').attr('title') || (el).find('.title').text().trim();
-                const href = \$(el).find('a').attr('href');
-                const img = \$(el).find('img').attr('src');
+            const $ = cheerio.load(res.data);
+            $('.list-films .item').each((i, el) => {
+                const title = $(el).find('a').attr('title') || $(el).find('.title').text().trim();
+                const href = $(el).find('a').attr('href');
+                const img = $(el).find('img').attr('src');
                 if (title && href) {
                     catalogItems.push({
                         id: "1phim32_" + encodeURIComponent(title),
@@ -79,9 +80,10 @@ builder.defineCatalogHandler(async function(args) {
     if (args.id === "nguonc_new") {
         try {
             const res = await axios.get("https://nguonc.com", { headers: requestHeaders, timeout: 5000 });
-            const \(= cheerio.load(res.data);\)('.list-films .item').each((i, el) => {
-                const title = \$(el).find('a').text().trim();
-                const href = \$(el).find('a').attr('href');
+            const $ = cheerio.load(res.data);
+            $('.list-films .item').each((i, el) => {
+                const title = $(el).find('a').text().trim();
+                const href = $(el).find('a').attr('href');
                 if (title && href) {
                     catalogItems.push({
                         id: "nguonc_" + encodeURIComponent(title),
@@ -96,12 +98,12 @@ builder.defineCatalogHandler(async function(args) {
 
     if (args.id === "motphim_new") {
         try {
-            // Cào danh sách phim mới nhất ở trang chủ MọtPhimTV
-            const res = await axios.get("https://motphimtv.run/", { headers: requestHeaders, timeout: 5000 });
-            const \(= cheerio.load(res.data);\)('.list-films .item, .list-film .item, .post-item').each((i, el) => {
-                const title = \$(el).find('a').attr('title') || (el).find('h3').text().trim() || (el).find('.title').text().trim();
-                const href = \$(el).find('a').attr('href');
-                const img = (el).find('img').attr('src') || (el).find('img').attr('data-src');
+            const res = await axios.get("https://motphimtv.run", { headers: requestHeaders, timeout: 5000 });
+            const $ = cheerio.load(res.data);
+            $('.list-films .item, .list-film .item, .post-item').each((i, el) => {
+                const title = $(el).find('a').attr('title') || $(el).find('h3').text().trim() || $(el).find('.title').text().trim();
+                const href = $(el).find('a').attr('href');
+                const img = $(el).find('img').attr('src') || $(el).find('img').attr('data-src');
                 if (title && href) {
                     catalogItems.push({
                         id: "motphim_" + encodeURIComponent(title),
@@ -135,56 +137,55 @@ builder.defineStreamHandler(async function(args) {
     const searchQuery = encodeURIComponent(movieName);
     const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
 
-    // TẮC 1: 1PHIM32
+    // SOURCE 1: 1PHIM32
     try {
-        const url1 = `https://1phim32.com${searchSlug}/`;
+        const url1 = "https://1phim32.com" + searchSlug + "/";
         const res1 = await axios.get(url1, { headers: requestHeaders, timeout: 5000 });
-        const \$ = cheerio.load(res1.data);
-        let videoSrc = ("iframe").attr("src") || ("video").attr("src");
+        const $ = cheerio.load(res1.data);
+        let videoSrc = $("iframe").attr("src") || $("video").attr("src");
         if (videoSrc) {
-            streams.push({ name: "🔹 Source 1-A", title: `Stream: ${movieName}`, url: videoSrc });
+            streams.push({ name: "🔹 Source 1-A", title: "Stream: " + movieName, url: videoSrc });
         } else {
-            \$('.list-films .item a').each((i, el) => {
-                const href = \$(el).attr('href');
-                if (href) streams.push({ name: "🔹 Source 1-B", title: `Link: ${movieName}`, url: href });
+            $('.list-films .item a').each((i, el) => {
+                const href = $(el).attr('href');
+                if (href) streams.push({ name: "🔹 Source 1-B", title: "Link: " + movieName, url: href });
             });
         }
     } catch (err) { console.log("Lỗi Source 1"); }
 
-    // TẮC 2: PHIM NGUỒNC
+    // SOURCE 2: PHIM NGUỒNC
     try {
-        const url2 = `https://nguonc.com?s=${searchQuery}`;
+        const url2 = "https://nguonc.com?s=" + searchQuery;
         const res2 = await axios.get(url2, { headers: requestHeaders, timeout: 5000 });
-        const \$ = cheerio.load(res2.data);
-        let videoSrc2 = ("iframe").attr("src") || ("video").attr("src");
+        const $ = cheerio.load(res2.data);
+        let videoSrc2 = $("iframe").attr("src") || $("video").attr("src");
         if (videoSrc2) {
-            streams.push({ name: "🔹 Source 2-A", title: `Stream: ${movieName}`, url: videoSrc2 });
+            streams.push({ name: "🔹 Source 2-A", title: "Stream: " + movieName, url: videoSrc2 });
         } else {
-            \$('.list-films .item a').each((i, el) => {
-                const href = \$(el).attr('href');
+            $('.list-films .item a').each((i, el) => {
+                const href = $(el).attr('href');
                 if (href) {
-                    const fullHref = href.startsWith('http') ? href : `https://nguonc.com${href}`;
-                    streams.push({ name: "🔹 Source 2-B", title: `Link: ${movieName}`, url: fullHref });
+                    const fullHref = href.indexOf('http') === 0 ? href : "https://nguonc.com" + href;
+                    streams.push({ name: "🔹 Source 2-B", title: "Link: " + movieName, url: fullHref });
                 }
             });
         }
     } catch (err) { console.log("Lỗi Source 2"); }
 
-    // TẮC 3: MỌTPHIMTV (MỚI THÊM)
+    // SOURCE 3: MỌTPHIMTV
     try {
-        const url3 = `https://motphimtv.run{searchPlus}`;
+        const url3 = "https://motphimtv.run?search=" + searchPlus;
         const res3 = await axios.get(url3, { headers: requestHeaders, timeout: 5000 });
-        const \$ = cheerio.load(res3.data);
+        const $ = cheerio.load(res3.data);
         
-        // Tìm kiếm các thẻ chứa link phim từ trang kết quả tìm kiếm của MọtPhimTV
-        \$('.list-films .item a, .list-film .item a, a.movie-item').each((i, el) => {
-            const href = \$(el).attr('href');
-            const title = (el).attr('title') || (el).find('.title').text().trim() || "MọtPhim Link";
+        $('.list-films .item a, .list-film .item a, a.movie-item').each((i, el) => {
+            const href = $(el).attr('href');
+            const title = $(el).attr('title') || $(el).find('.title').text().trim() || "MọtPhim Link";
             if (href) {
-                const fullHref = href.startsWith('http') ? href : `https://motphimtv.run${href}`;
+                const fullHref = href.indexOf('http') === 0 ? href : "https://motphimtv.run" + href;
                 streams.push({
                     name: "🔹 Source 3",
-                    title: `MọtPhimTV: ${title}`,
+                    title: "MọtPhimTV: " + title,
                     url: fullHref
                 });
             }
