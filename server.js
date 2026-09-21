@@ -3,7 +3,7 @@ const axios = require("axios");
 
 const manifest = {
     "id": "community.myvietnamesescraper",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "name": "BCP",
     "description": "Private media stream utility dashboard.",
     "resources": ["stream", "catalog"],
@@ -12,7 +12,7 @@ const manifest = {
     "catalogs": [
         {
             "type": "movie",
-            "id": "bcp_trending",
+            "id": "bcp_fixed",
             "name": "Mục Tổng Hợp"
         }
     ]
@@ -20,7 +20,15 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Sử dụng API cổng chung cấu trúc mở để hạn chế tối đa việc bị Cloudflare chặn IP Render
+// Giải pháp Ghim cố định Phim Phổ Biến để Catalog không bao giờ bị biến mất trên TV LG
+const fixedMovies = [
+    { id: "tt1630029", name: "Avatar: The Way of Water", poster: "https://tmdb.org" },
+    { id: "tt6718170", name: "Spider-Man: Into the Spider-Verse", poster: "https://tmdb.org" },
+    { id: "tt10872600", name: "Spider-Man: No Way Home", poster: "https://tmdb.org" },
+    { id: "tt22 F63560", name: "Deadpool & Wolverine", poster: "https://tmdb.org" },
+    { id: "tt5433138", name: "Fast & Furious Crossroads", poster: "https://tmdb.org" }
+];
+
 async function getMovieMetadata(imdbId) {
     try {
         const res = await axios.get("https://stremio.com" + imdbId + ".json", { timeout: 4000 });
@@ -33,47 +41,32 @@ async function getMovieMetadata(imdbId) {
     }
 }
 
-// Bẫy lỗi Catalog: Trả về danh mục trống thay vì sập hệ thống nếu bị chặn IP
+// Handler danh mục cố định, đảm bảo luôn hiển thị rực rỡ
 builder.defineCatalogHandler(async function(args) {
-    const catalogItems = [];
-    if (args.id === "bcp_trending") {
-        try {
-            // Thử nghiệm lấy danh sách phim qua một endpoint API mở trung gian ổn định hơn
-            const res = await axios.get("https://ophim1.com", { timeout: 4000 });
-            if (res.data && res.data.items) {
-                res.data.items.forEach(item => {
-                    catalogItems.push({
-                        id: "bcp_" + encodeURIComponent(item.name),
-                        type: "movie",
-                        name: item.name,
-                        poster: "https://ophim.cc" + item.thumb_url + "&w=1920&q=75"
-                    });
-                });
-            }
-        } catch (err) { 
-            console.log("Tường lửa chặn mục phim, chuyển sang chế độ chờ..."); 
-        }
+    if (args.id === "bcp_fixed") {
+        const metas = fixedMovies.map(movie => ({
+            id: movie.id, // Sử dụng thẳng mã IMDb quốc tế
+            type: "movie",
+            name: movie.name,
+            poster: movie.poster
+        }));
+        return { metas: metas };
     }
-    return { metas: catalogItems };
+    return { metas: [] };
 });
 
 builder.defineStreamHandler(async function(args) {
     const streams = [];
-    let movieName = "";
-
-    if (args.id.startsWith("bcp_")) {
-        movieName = decodeURIComponent(args.id.replace("bcp_", ""));
-    } else {
-        const meta = await getMovieMetadata(args.id);
-        if (meta) movieName = meta.name;
-    }
-
-    if (!movieName) return { streams: [] };
+    const meta = await getMovieMetadata(args.id);
+    if (!meta || !meta.name) return { streams: [] };
+    
+    const movieName = meta.name;
     const searchQuery = encodeURIComponent(movieName);
+    const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
 
-    // Kênh 1: Giải pháp API mở (Tỉ lệ Live cao trên Render)
+    // LUỒNG PHÁT VƯỢT RÀO: Gửi lệnh tìm kiếm tới API mở
     try {
-        const res = await axios.get("https://ophim1.com" + searchQuery.toLowerCase().replace(/%20/g, '-'), { timeout: 4000 });
+        const res = await axios.get("https://ophim1.com" + movieName.toLowerCase().replace(/ /g, '-'), { timeout: 4000 });
         if (res.data && res.data.episodes) {
             res.data.episodes.forEach(ep => {
                 if (ep.server_data) {
@@ -81,25 +74,24 @@ builder.defineStreamHandler(async function(args) {
                         if (server.link_m3u8) {
                             streams.push({
                                 name: "🔹 Source VIP 1",
-                                title: "Luồng trực tiếp: " + server.name + "\nBấm để xem ngay trên TV",
-                                url: server.link_m3u8
+                                title: "Phát trực tiếp chất lượng cao\nNguồn: " + server.name,
+                                url: server.link_m3u8 // TV LG sẽ tự mở bằng trình chơi video nội bộ
                             });
                         }
                     });
                 }
             });
         }
-    } catch (e) { console.log("Kênh 1 tạm thời nghẽn IP"); }
+    } catch (e) { 
+        console.log("Nghẽn API tìm kiếm trực tiếp"); 
+    }
 
-    // Kênh 2: Dự phòng cào link web nhúng
-    try {
-        const searchPlus = encodeURIComponent(movieName.replace(/ /g, '+'));
-        streams.push({
-            name: "🔹 Source Web 2",
-            title: "Mở liên kết trình phát MọtPhimTV",
-            url: "https://motphimtv.run" + searchPlus
-        });
-    } catch (e) { console.log("Kênh 2 lỗi"); }
+    // LUỒNG DỰ PHÒNG CHUYỂN TRANG: Hỗ trợ tìm kiếm nhanh
+    streams.push({
+        name: "🔹 Source Web 2",
+        title: "Tìm kiếm phim '" + movieName + "' trên MọtPhimTV",
+        url: "https://motphimtv.run" + searchPlus
+    });
 
     return { streams: streams };
 });
