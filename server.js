@@ -25,7 +25,7 @@ const fixedMovies = [
     { id: "tt1630029", name: "Avatar: The Way of Water", poster: "https://tmdb.org" },
     { id: "tt6718170", name: "Spider-Man: Into the Spider-Verse", poster: "https://tmdb.org" },
     { id: "tt10872600", name: "Spider-Man: No Way Home", poster: "https://tmdb.org" },
-    { id: "tt22 F63560", name: "Deadpool & Wolverine", poster: "https://tmdb.org" },
+    { id: "tt2263560", name: "Deadpool & Wolverine", poster: "https://tmdb.org" },
     { id: "tt5433138", name: "Fast & Furious Crossroads", poster: "https://tmdb.org" }
 ];
 
