@@ -1,0 +1,11 @@
+{
+  "name": "stremio-vn-scraper",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "stremio-addon-sdk": "^1.3.0",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}
