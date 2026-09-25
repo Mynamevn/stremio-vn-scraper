@@ -1,5 +1,6 @@
 const express = require("express");
 const axios = require("axios");
+
 const {
     addonBuilder,
     getRouter
@@ -12,6 +13,7 @@ const {
 
 const manifest = {
     id: "community.bcpprofortv",
+
     version: "7.0.0",
 
     name: "BCP",
@@ -36,7 +38,9 @@ const manifest = {
     catalogs: [
         {
             type: "movie",
+
             id: "bcp_fixed",
+
             name: "Mục Tổng Hợp",
 
             extra: [
@@ -58,38 +62,52 @@ const builder = new addonBuilder(manifest);
 
 
 // ============================================================
-// DANH SÁCH PHIM CỐ ĐỊNH
+// DANH SÁCH PHIM
 // ============================================================
 
 const fixedMovies = [
+
     {
         id: "tt1630029",
+
         name: "Avatar: The Way of Water",
+
         slug: "avatar-the-way-of-water",
+
         plus: "avatar+the+way+of+water",
+
         poster: "https://stremio.com"
     },
 
     {
         id: "tt10872600",
+
         name: "Spider-Man: No Way Home",
+
         slug: "spider-man-no-way-home",
+
         plus: "spider-man+no+way+home",
+
         poster: "https://stremio.com"
     },
 
     {
         id: "tt2263560",
+
         name: "Deadpool & Wolverine",
+
         slug: "deadpool-wolverine",
+
         plus: "deadpool+wolverine",
+
         poster: "https://stremio.com"
     }
+
 ];
 
 
 // ============================================================
-// METADATA
+// LẤY METADATA PHIM
 // ============================================================
 
 async function getMovieMetadata(imdbId) {
@@ -97,7 +115,9 @@ async function getMovieMetadata(imdbId) {
     try {
 
         const res = await axios.get(
-            "https://stremio.com" + imdbId + ".json",
+            "https://stremio.com" +
+            imdbId +
+            ".json",
             {
                 timeout: 4000
             }
@@ -111,13 +131,14 @@ async function getMovieMetadata(imdbId) {
             return {
                 name: res.data.meta.name
             };
+
         }
 
         return null;
 
     } catch (e) {
 
-        console.error(
+        console.log(
             "[METADATA ERROR]",
             imdbId,
             e.message
@@ -132,392 +153,247 @@ async function getMovieMetadata(imdbId) {
 // CATALOG HANDLER
 // ============================================================
 
-builder.defineCatalogHandler(async function(args) {
+builder.defineCatalogHandler(
+    async function(args) {
 
-    console.log(
-        "[CATALOG]",
-        JSON.stringify(args)
-    );
+        console.log(
+            "[CATALOG REQUEST]",
+            JSON.stringify(args)
+        );
 
-    if (args.id === "bcp_fixed") {
 
-        const metas = fixedMovies.map(movie => ({
+        if (
+            args.id ===
+            "bcp_fixed"
+        ) {
 
-            id: movie.id,
+            const metas =
+                fixedMovies.map(
+                    movie => ({
 
-            type: "movie",
+                        id:
+                            movie.id,
 
-            name: movie.name,
+                        type:
+                            "movie",
 
-            poster: movie.poster,
+                        name:
+                            movie.name,
 
-            description:
-                "Hệ thống phát video trực tiếp nội bộ BCP."
-        }));
+                        poster:
+                            movie.poster,
+
+                        description:
+                            "Hệ thống phát video trực tiếp nội bộ BCP."
+                    })
+                );
+
+
+            return {
+                metas:
+                    metas
+            };
+        }
+
 
         return {
-            metas: metas
+            metas: []
         };
     }
-
-    return {
-        metas: []
-    };
-});
+);
 
 
 // ============================================================
 // STREAM HANDLER
 // ============================================================
 
-builder.defineStreamHandler(async function(args) {
-
-    console.log(
-        "[STREAM REQUEST]",
-        JSON.stringify(args)
-    );
-
-    const streams = [];
-
-    let movieName = "";
-    let cleanSlug = "";
-    let cleanPlus = "";
-
-
-    // --------------------------------------------------------
-    // TÌM PHIM TRONG DANH SÁCH CỐ ĐỊNH
-    // --------------------------------------------------------
-
-    const matchedMovie =
-        fixedMovies.find(
-            movie => movie.id === args.id
-        );
-
-
-    if (matchedMovie) {
-
-        movieName =
-            matchedMovie.name;
-
-        cleanSlug =
-            matchedMovie.slug;
-
-        cleanPlus =
-            matchedMovie.plus;
-
-    } else {
-
-        // ----------------------------------------------------
-        // NẾU KHÔNG CÓ THÌ THỬ LẤY METADATA
-        // ----------------------------------------------------
-
-        const meta =
-            await getMovieMetadata(args.id);
-
-
-        if (
-            meta &&
-            meta.name
-        ) {
-
-            movieName =
-                meta.name;
-
-
-            cleanSlug =
-                encodeURIComponent(
-                    movieName
-                        .toLowerCase()
-                        .replace(/ /g, "-")
-                        .replace(/:/g, "")
-                );
-
-
-            cleanPlus =
-                encodeURIComponent(
-                    movieName.replace(
-                        / /g,
-                        "+"
-                    )
-                );
-        }
-    }
-
-
-    // --------------------------------------------------------
-    // KHÔNG TÌM THẤY PHIM
-    // --------------------------------------------------------
-
-    if (!movieName) {
+builder.defineStreamHandler(
+    async function(args) {
 
         console.log(
-            "[STREAM] Không tìm thấy metadata:",
-            args.id
+            "[STREAM REQUEST]",
+            JSON.stringify(args)
         );
 
+
+        const streams = [];
+
+
+        let movieName = "";
+
+        let cleanSlug = "";
+
+        let cleanPlus = "";
+
+
+        // ------------------------------------------------------
+        // TÌM TRONG DANH SÁCH PHIM CỐ ĐỊNH
+        // ------------------------------------------------------
+
+        const matchedMovie =
+            fixedMovies.find(
+                movie =>
+                    movie.id ===
+                    args.id
+            );
+
+
+        if (matchedMovie) {
+
+            movieName =
+                matchedMovie.name;
+
+            cleanSlug =
+                matchedMovie.slug;
+
+            cleanPlus =
+                matchedMovie.plus;
+
+        } else {
+
+            // --------------------------------------------------
+            // THỬ LẤY METADATA
+            // --------------------------------------------------
+
+            const meta =
+                await getMovieMetadata(
+                    args.id
+                );
+
+
+            if (
+                meta &&
+                meta.name
+            ) {
+
+                movieName =
+                    meta.name;
+
+
+                cleanSlug =
+                    encodeURIComponent(
+
+                        movieName
+                            .toLowerCase()
+                            .replace(
+                                / /g,
+                                "-"
+                            )
+                            .replace(
+                                /:/g,
+                                ""
+                            )
+                    );
+
+
+                cleanPlus =
+                    encodeURIComponent(
+
+                        movieName.replace(
+                            / /g,
+                            "+"
+                        )
+                    );
+            }
+        }
+
+
+        // ------------------------------------------------------
+        // KHÔNG TÌM THẤY PHIM
+        // ------------------------------------------------------
+
+        if (!movieName) {
+
+            console.log(
+                "[STREAM] Không tìm thấy phim:",
+                args.id
+            );
+
+            return {
+                streams: []
+            };
+        }
+
+
+        // ======================================================
+        // SOURCE 1 - 1PHIM32
+        // ======================================================
+
+        streams.push({
+
+            name:
+                "🔹 Source 1 (1Phim32)",
+
+            title:
+                "Xem phim: " +
+                movieName +
+                "\n[Phát trực tiếp ngay trong trình chơi Stremio]",
+
+            url:
+                "https://1phim32.com" +
+                cleanSlug +
+                "/video.mp4"
+        });
+
+
+        // ======================================================
+        // SOURCE 2 - NGUONC
+        // ======================================================
+
+        streams.push({
+
+            name:
+                "🔹 Source 2 (NguồnC)",
+
+            title:
+                "Xem phim: " +
+                movieName +
+                "\n[Phát trực tiếp ngay trong trình chơi Stremio]",
+
+            url:
+                "https://nguonc.com" +
+                cleanPlus +
+                "&file=video.m3u8"
+        });
+
+
+        // ======================================================
+        // SOURCE 3 - MOTPHIM
+        // ======================================================
+
+        streams.push({
+
+            name:
+                "🔹 Source 3 (MọtPhim)",
+
+            title:
+                "Xem phim: " +
+                movieName +
+                "\n[Phát trực tiếp ngay trong trình chơi Stremio]",
+
+            url:
+                "https://motphimtv.run" +
+                cleanPlus +
+                "&output=stream.m3u8"
+        });
+
+
+        console.log(
+            "[STREAM RESPONSE]",
+            JSON.stringify(
+                streams,
+                null,
+                2
+            )
+        );
+
+
         return {
-            streams: []
+            streams:
+                streams
         };
     }
-
-
-    // ========================================================
-    // SOURCE 1
-    // ========================================================
-
-    streams.push({
-
-        name:
-            "🔹 Source 1 (1Phim32)",
-
-        title:
-            "Xem phim: " +
-            movieName +
-            "\n[Phát trực tiếp ngay trong trình chơi Stremio]",
-
-        url:
-            "https://1phim32.com" +
-            cleanSlug +
-            "/video.mp4"
-    });
-
-
-    // ========================================================
-    // SOURCE 2
-    // ========================================================
-
-    streams.push({
-
-        name:
-            "🔹 Source 2 (NguồnC)",
-
-        title:
-            "Xem phim: " +
-            movieName +
-            "\n[Phát trực tiếp ngay trong trình chơi Stremio]",
-
-        url:
-            "https://nguonc.com" +
-            cleanPlus +
-            "&file=video.m3u8"
-    });
-
-
-    // ========================================================
-    // SOURCE 3
-    // ========================================================
-
-    streams.push({
-
-        name:
-            "🔹 Source 3 (MọtPhim)",
-
-        title:
-            "Xem phim: " +
-            movieName +
-            "\n[Phát trực tiếp ngay trong trình chơi Stremio]",
-
-        url:
-            "https://motphimtv.run" +
-            cleanPlus +
-            "&output=stream.m3u8"
-    });
-
-
-    console.log(
-        "[STREAM RESPONSE]",
-        JSON.stringify(
-            streams,
-            null,
-            2
-        )
-    );
-
-
-    return {
-        streams: streams
-    };
-});
-
-
-// ============================================================
-// TEST RENDER -> NGUONC / STREAMC
-// ============================================================
-//
-// Chức năng này KHÔNG được gọi khi Stremio lấy stream.
-// Chỉ chạy khi truy cập:
-//
-// /test-nguonc
-//
-// Mục đích:
-// Render -> phim.nguonc.com
-// Render -> embed14.streamc.xyz
-//
-// ============================================================
-
-async function testNguonCFromRender() {
-
-    const results = {};
-
-
-    // ========================================================
-    // TEST 1: NGUONC API
-    // ========================================================
-
-    try {
-
-        const url =
-            "https://phim.nguonc.com/api/film/am-anh-2026";
-
-
-        const response =
-            await axios.get(
-                url,
-                {
-                    timeout: 15000,
-
-                    headers: {
-
-                        "User-Agent":
-                            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-
-                        "Accept":
-                            "application/json, text/plain, */*",
-
-                        "Referer":
-                            "https://nguonc.com/",
-
-                        "Origin":
-                            "https://nguonc.com"
-                    },
-
-                    validateStatus:
-                        () => true
-                }
-            );
-
-
-        results.nguoncApi = {
-
-            url,
-
-            status:
-                response.status,
-
-            server:
-                response.headers?.server || "",
-
-            contentType:
-                response.headers?.["content-type"] || "",
-
-            body:
-                typeof response.data === "string"
-
-                    ? response.data.slice(
-                        0,
-                        1000
-                    )
-
-                    : JSON.stringify(
-                        response.data
-                    ).slice(
-                        0,
-                        1000
-                    )
-        };
-
-
-    } catch (e) {
-
-        results.nguoncApi = {
-
-            error:
-                e?.message ||
-                String(e)
-        };
-    }
-
-
-    // ========================================================
-    // TEST 2: STREAMC EMBED
-    // ========================================================
-
-    try {
-
-        const url =
-            "https://embed14.streamc.xyz/embed.php?hash=4681d86705ffd80ed1e5a5d636d06faf";
-
-
-        const response =
-            await axios.get(
-                url,
-                {
-                    timeout: 15000,
-
-                    headers: {
-
-                        "User-Agent":
-                            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-
-                        "Accept":
-                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-
-                        "Referer":
-                            "https://phim.nguonc.com/",
-
-                        "Origin":
-                            "https://phim.nguonc.com"
-                    },
-
-                    validateStatus:
-                        () => true
-                }
-            );
-
-
-        results.streamcEmbed = {
-
-            url,
-
-            status:
-                response.status,
-
-            server:
-                response.headers?.server || "",
-
-            contentType:
-                response.headers?.["content-type"] || "",
-
-            body:
-                typeof response.data === "string"
-
-                    ? response.data.slice(
-                        0,
-                        1000
-                    )
-
-                    : JSON.stringify(
-                        response.data
-                    ).slice(
-                        0,
-                        1000
-                    )
-        };
-
-
-    } catch (e) {
-
-        results.streamcEmbed = {
-
-            error:
-                e?.message ||
-                String(e)
-        };
-    }
-
-
-    return results;
-}
+);
 
 
 // ============================================================
@@ -527,9 +403,24 @@ async function testNguonCFromRender() {
 const app = express();
 
 
-// ------------------------------------------------------------
-// TEST ROUTE
-// ------------------------------------------------------------
+// ============================================================
+// TEST NGUONC TỪ RENDER
+// ============================================================
+//
+// Mở:
+// https://TEN-APP-RENDER.onrender.com/test-nguonc
+//
+// Route này kiểm tra:
+// Render -> phim.nguonc.com
+//
+// Nó trả về:
+// - HTTP status
+// - Server
+// - Content-Type
+// - CF-Ray
+// - Một phần response body
+//
+// ============================================================
 
 app.get(
     "/test-nguonc",
@@ -537,27 +428,79 @@ app.get(
 
         try {
 
-            const result =
-                await testNguonCFromRender();
+            const url =
+                "https://phim.nguonc.com/api/film/am-anh-2026";
 
 
-            console.log(
-                "[RENDER NGUONC TEST]",
-                JSON.stringify(
-                    result,
-                    null,
-                    2
-                )
-            );
+            const response =
+                await axios.get(
+                    url,
+                    {
+
+                        timeout:
+                            15000,
+
+                        headers: {
+
+                            "User-Agent":
+                                "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+
+                            "Accept":
+                                "application/json, text/plain, */*",
+
+                            "Referer":
+                                "https://nguonc.com/",
+
+                            "Origin":
+                                "https://nguonc.com"
+                        },
+
+                        // Quan trọng:
+                        // Không để axios tự throw lỗi với
+                        // 403 / 404 / 429 / 500...
+                        validateStatus:
+                            () => true
+                    }
+                );
 
 
-            res.json(result);
+            res.json({
+
+                status:
+                    response.status,
+
+                server:
+                    response.headers?.server ||
+                    "",
+
+                contentType:
+                    response.headers?.[
+                        "content-type"
+                    ] || "",
+
+                cfRay:
+                    response.headers?.[
+                        "cf-ray"
+                    ] || "",
+
+                body:
+
+                    typeof response.data ===
+                    "string"
+
+                        ? response.data.slice(
+                            0,
+                            2000
+                        )
+
+                        : response.data
+            });
 
 
         } catch (e) {
 
             console.error(
-                "[RENDER NGUONC TEST ERROR]",
+                "[TEST NGUONC ERROR]",
                 e
             );
 
@@ -566,16 +509,47 @@ app.get(
 
                 error:
                     e?.message ||
-                    String(e)
+                    String(e),
+
+                status:
+                    e?.response?.status ||
+                    null,
+
+                server:
+                    e?.response?.headers?.server ||
+                    "",
+
+                cfRay:
+                    e?.response?.headers?.[
+                        "cf-ray"
+                    ] || "",
+
+                body:
+
+                    typeof e?.response?.data ===
+                    "string"
+
+                        ? e.response.data.slice(
+                            0,
+                            2000
+                        )
+
+                        : e?.response?.data ||
+                          null
             });
         }
     }
 );
 
 
-// ------------------------------------------------------------
+// ============================================================
 // HEALTH CHECK
-// ------------------------------------------------------------
+// ============================================================
+//
+// Mở:
+// https://TEN-APP-RENDER.onrender.com/health
+//
+// ============================================================
 
 app.get(
     "/health",
@@ -583,7 +557,8 @@ app.get(
 
         res.json({
 
-            status: "ok",
+            status:
+                "ok",
 
             addon:
                 manifest.name,
@@ -599,7 +574,7 @@ app.get(
 
 
 // ============================================================
-// MOUNT STREMIO ADDON ROUTER
+// GẮN STREMIO ADDON VÀO EXPRESS
 // ============================================================
 
 const addonInterface =
@@ -607,17 +582,10 @@ const addonInterface =
 
 
 const addonRouter =
-    getRouter(addonInterface);
+    getRouter(
+        addonInterface
+    );
 
-
-// Các endpoint của Stremio:
-//
-// /manifest.json
-// /catalog/...
-// /meta/...
-// /stream/...
-//
-// được SDK xử lý tại đây.
 
 app.use(
     addonRouter
@@ -629,7 +597,8 @@ app.use(
 // ============================================================
 
 const PORT =
-    process.env.PORT || 7000;
+    process.env.PORT ||
+    7000;
 
 
 app.listen(
@@ -660,15 +629,35 @@ app.listen(
         );
 
         console.log(
-            "Manifest: /manifest.json"
+            "Manifest:"
         );
 
         console.log(
-            "Health: /health"
+            "/manifest.json"
         );
 
         console.log(
-            "NguonC Test: /test-nguonc"
+            "========================================"
+        );
+
+        console.log(
+            "Health:"
+        );
+
+        console.log(
+            "/health"
+        );
+
+        console.log(
+            "========================================"
+        );
+
+        console.log(
+            "NguonC Render Test:"
+        );
+
+        console.log(
+            "/test-nguonc"
         );
 
         console.log(
